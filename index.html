@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Times Tables Chicken</title>
+<style>
+  :root{
+    --danger:#d9534f; --ok:#2e7d32;
+    --timerbg:#eef5ff; --timerfg:#245fa5;
+    --gold1:#ffd54f; --gold2:#ffb300;
+    --green1:#81c784; --green2:#2e7d32;
+    --sky:#a3d9ff; --grass:#d6f5d6;
+    --trackThickness: 10px;
+    --sx: 1;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
+  body{background:#f6fff6;display:flex;align-items:center;justify-content:center}
+  .game{width:min(900px,96vw);background:#fff;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.08);overflow:hidden;position:relative}
+
+  .top{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #eee;background:#fafafa;gap:8px}
+  .group{display:flex;align-items:center;gap:14px;font-weight:600;flex-wrap:nowrap}
+  .right-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .mute{border:1px solid #ddd;background:#fff;border-radius:10px;padding:6px 10px;cursor:pointer;font-weight:700}
+
+  .level-progress{display:flex;align-items:center;gap:10px;flex:1}
+  .leveltext{font-weight:700;color:#333;min-width:90px;text-align:right}
+  .barwrap{height:14px;background:#eee;border-radius:999px;overflow:hidden;flex:1;min-width:220px}
+  .bar{height:100%;width:0;transition:width .25s, background .25s}
+  .bar.base{background:linear-gradient(90deg,#ffcc4d,#2a77b6)}
+  .bar.good{background:linear-gradient(90deg,var(--green1),var(--green2))}
+  .bar.great{background:linear-gradient(90deg,#ffd54f,#ffb300)}
+
+  .timer{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:var(--timerbg);color:var(--timerfg);font-weight:700;white-space:nowrap;font-size:clamp(12px,1.6vw,14px)}
+
+  .arena{position:relative;height:300px;overflow:hidden}
+  .theme-1{ background:linear-gradient(0deg,var(--grass) 52%,var(--sky) 52%); }
+  .theme-2{ background:linear-gradient(0deg,#cde8c3 52%,#cfe9ff 52%); }
+  .theme-3{ background:linear-gradient(0deg,#bde7ff 52%,#90caf9 52%); }
+  .theme-4{ background:linear-gradient(0deg,#c8f7c5 52%,#a5d6a7 52%); }
+  .theme-5{ background:radial-gradient(ellipse at 70% 10%,#9fa8da,transparent 50%), linear-gradient(0deg,#222 52%,#0b1020 52%); color:#dfe6ff;}
+  .theme-6{ background:linear-gradient(0deg,#f5e1a4 52%,#ffe0b2 52%); }
+  .theme-7{ background:linear-gradient(0deg,#e3f2fd 52%,#bbdefb 52%); }
+  .theme-8{ background:linear-gradient(0deg,#e0e0e0 52%,#cfd8dc 52%); }
+
+  .decor{position:absolute;inset:0;pointer-events:none;opacity:.25;font-size:28px}
+  .d1{left:10%;top:60%;position:absolute} .d2{left:80%;top:60%;position:absolute}
+  .d3{left:15%;top:20%;position:absolute} .d4{left:70%;top:25%;position:absolute}
+
+  .lane{position:absolute;left:0;right:0;height:var(--trackThickness);background:#4e8a3e;z-index:0;box-shadow:0 0 0 2px rgba(0,0,0,.05) inset}
+  .connector{position:absolute;width:var(--trackThickness);background:#4e8a3e;z-index:0;box-shadow:0 0 0 2px rgba(0,0,0,.05) inset}
+  .flag{position:absolute;font-size:42px;transform-origin:bottom center;user-select:none;z-index:0}
+
+  .actor{position:absolute;transform:translate(-50%,0) scaleX(var(--sx));transition:left .3s ease;filter:drop-shadow(0 4px 2px rgba(0,0,0,.2));user-select:none;z-index:2}
+  .actor .emoji{font-size:56px; line-height:56px; display:block}
+
+  .egg{position:absolute;font-size:28px;transform:translate(-50%,-50%);animation:fly .45s linear forwards;pointer-events:none;z-index:2}
+  @keyframes fly{from{left:var(--from)}to{left:var(--to)}}
+
+  .feather{position:absolute;width:10px;height:10px;border-radius:50%;opacity:0.9}
+  @keyframes puff{from{transform:translate(0,0) scale(1);opacity:1} to{transform:translate(var(--dx),var(--dy)) scale(0);opacity:0}}
+
+  .bgmark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:120px;opacity:0;pointer-events:none;z-index:1}
+  .bgmark.show{animation:mark .6s ease forwards}
+  .bgmark.ok{color:rgba(46,125,50,.25)}
+  .bgmark.ko{color:rgba(217,83,79,.25)}
+  @keyframes mark{0%{transform:scale(.7);opacity:0}20%{opacity:1}80%{opacity:1}100%{transform:scale(1);opacity:0}}
+
+  .hud{padding:14px 16px;display:grid;gap:10px}
+  .qrow{display:flex;justify-content:space-between;align-items:center;gap:12px}
+  .q{font-size:clamp(20px,2.6vw,28px);font-weight:700}
+  .qtimer-wrap{display:flex;align-items:center;gap:8px}
+  .qtimer{font-weight:700;color:var(--timerfg);background:var(--timerbg);border-radius:12px;padding:6px 10px;font-size:16px}
+  .qtbar{width:min(460px,60vw);height:8px;background:#dfe9ff;border-radius:999px;overflow:hidden}
+  .qtfill{height:100%;width:100%;background:linear-gradient(90deg,#7fb3ff,#245fa5)}
+
+  .choices{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .btn{padding:14px;border:2px solid #eee;border-radius:12px;background:#fff;font-size:20px;cursor:pointer;transition:.15s}
+  .btn:hover{border-color:#ddd;transform:translateY(-1px)}
+  .btn.ok{border-color:var(--ok);background:#e8f5e9}
+  .btn.ko{border-color:var(--danger);background:#fdecea}
+
+  /* Overlay */
+  .overlay{position:absolute;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;opacity:0;pointer-events:none;transition:.2s;z-index:3}
+  .overlay.show{opacity:1;pointer-events:auto}
+  .summary{background:#fff;color:#222;padding:14px 16px;border-radius:12px;min-width:260px;max-width:360px;box-shadow:0 10px 30px rgba(0,0,0,.25);text-align:left}
+  .summary h3{margin:0 0 8px 0;font-size:18px}
+  .summary .row{display:flex;justify-content:space-between;margin:4px 0;font-size:14px}
+  .summary .btnc{margin-top:10px;text-align:right}
+  .summary button{padding:6px 10px;border-radius:10px;border:none;background:#2e7d32;color:#fff;font-weight:700;cursor:pointer;font-size:14px}
+
+  /* Overlay LOGIN */
+  .overlay-login .summary { text-align:center; }
+  .overlay-login h3 { font-size:20px; margin:0 0 8px 0; }
+  .overlay-login p { margin:0 0 12px 0; color:#444; font-size:13px; }
+  .overlay-login input {
+    width:100%; padding:8px 10px; margin:6px 0; border:1px solid #ddd; border-radius:10px; font-size:14px;
+  }
+  .overlay-login .error { color:#c62828; font-weight:700; min-height:20px; }
+  .overlay-login .summary button { background:#245fa5; }
+</style>
+</head>
+<body>
+  <div class="game" id="game">
+    <div class="top">
+      <div class="group">
+        <div>❤️ <span id="lives">3</span></div>
+        <div>⭐ <span id="score">0</span></div>
+        <div class="timer">⏱️ L <span id="levelTime">0</span>s • T <span id="totTime">0</span>s</div>
+      </div>
+      <div class="level-progress">
+        <div class="leveltext" id="levelText">Level 1</div>
+        <div class="barwrap"><div id="progress" class="bar base"></div></div>
+      </div>
+      <div class="right-controls">
+        <button id="btnMusic" class="mute">▶️ Music</button>
+        <label style="font-size:12px;margin-left:6px;">Vol</label>
+        <input id="vol" type="range" min="0" max="100" value="01" style="width:120px;">
+        <span id="volPct" style="font-size:12px;min-width:34px;display:inline-block;text-align:right;">01%</span>
+      </div>
+    </div>
+
+    <div class="arena theme-1" id="arena">
+      <div class="decor" id="decor"></div>
+      <div class="bgmark" id="bgmark"></div>
+
+      <!-- Attori -->
+      <div id="chicken" class="actor" style="--sx:1"><span class="emoji">🐔</span></div>
+      <div id="enemy" class="actor" style="--sx:1"><span class="emoji" id="enemyEmoji">🦊</span></div>
+
+      <!-- Overlay riassunto livelli -->
+      <div id="overlay" class="overlay">
+        <div class="summary" id="summaryBox" style="display:none">
+          <h3>Level <span id="sumLvl">1</span> — Summary</h3>
+          <div class="row"><div>Time</div><div><span id="sumTime">0</span>s</div></div>
+          <div class="row"><div>Correct</div><div id="sumOk">0</div></div>
+          <div class="row"><div>Wrong</div><div id="sumKo">0</div></div>
+          <div class="row"><div>Total Correct</div><div id="sumTotOk">0</div></div>
+          <div class="row"><div>Total Wrong</div><div id="sumTotKo">0</div></div>
+          <div class="row"><div>Bonus</div><div id="sumBonus">+20</div></div>
+          <div class="row"><div>Total Score</div><div id="sumScore">0</div></div>
+          <div class="btnc"><button id="btnContinue">Continue</button></div>
+        </div>
+      </div>
+
+      <!-- Overlay LOGIN -->
+      <div id="loginOverlay" class="overlay overlay-login show">
+        <div class="summary">
+          <h3>Restricted Access</h3>
+          <p>Inserisci Nick e Password per iniziare.</p>
+          <input id="nickInput" placeholder="Nick" autocomplete="off"/>
+          <input id="passInput" placeholder="Password" type="password" autocomplete="off"/>
+          <div id="loginError" class="error"></div>
+          <div class="btnc"><button id="btnLogin">Start</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="hud">
+      <div class="qrow">
+        <div class="q" id="question"></div>
+        <div class="qtimer-wrap">
+          <div class="qtimer">⏳ <span id="qtime">8</span>s</div>
+          <div class="qtbar"><div id="qtfill" class="qtfill"></div></div>
+        </div>
+      </div>
+      <div class="choices">
+        <button class="btn" id="c1"></button>
+        <button class="btn" id="c2"></button>
+        <button class="btn" id="c3"></button>
+      </div>
+    </div>
+
+    <!-- AUDIO nascosto: parte solo dopo login -->
+    <audio id="bgm" src="Gioia_Pixelata.mp3" preload="auto" loop
+           style="position:absolute;left:-9999px;top:-9999px;width:0;height:0;opacity:0;pointer-events:none;"></audio>
+  </div>
+
+<script>
+/* ===== DOM ===== */
+const $=id=>document.getElementById(id);
+const elArena=$('arena'), elDecor=$('decor'),
+      elQ=$('question'), b1=$('c1'), b2=$('c2'), b3=$('c3'),
+      elChicken=$('chicken'), elEnemy=$('enemy'), elEnemyEmoji=$('enemyEmoji'),
+      elBg=$('bgmark'), elLives=$('lives'), elScore=$('score'),
+      elLevelText=$('levelText'), elBar=$('progress'),
+      elOverlay=$('overlay'), elSummary=$('summaryBox'),
+      sumLvl=$('sumLvl'), sumTime=$('sumTime'), sumOk=$('sumOk'), sumKo=$('sumKo'),
+      sumTotOk=$('sumTotOk'), sumTotKo=$('sumTotKo'),
+      sumBonus=$('sumBonus'), sumScore=$('sumScore'),
+      btnContinue=$('btnContinue'),
+      elLevelTime=$('levelTime'), elTotTime=$('totTime'),
+      btnMusic=$('btnMusic'), volEl=$('vol'), volPctEl=$('volPct'),
+      elQTime=$('qtime'), qtfill=$('qtfill'),
+      bgm=$('bgm'),
+      loginOverlay=$('loginOverlay'), btnLogin=$('btnLogin'),
+      nickInput=$('nickInput'), passInput=$('passInput'), loginError=$('loginError');
+const buttons=[b1,b2,b3];
+
+/* ===== GIOCO: costanti e stato ===== */
+const LEFT_ESCAPE=10, RIGHT_ESCAPE=90, HIT_GAP=5, SAFE_GAP=16;
+const STEP_CHICK=5, STEP_ENEMY=10;
+const MAX_LIVES=5;
+const THEMES=["","theme-1","theme-2","theme-3","theme-4","theme-5","theme-6","theme-7","theme-8"];
+const ENEMIES=["", "🦊","🐻","🦈","🦖","🛸","🐍","🐺","👾"];
+const TIME_BY_LEVEL=[8,6,5,4,3,2,2,2];
+
+const state={ level:1, lives:3, score:0, locked:false, shield:true, advancing:false,
+  lanes:1, laneIndex:0, laneIndexEnemy:0, dir:-1, enemyDir:-1, chickPos:60, enemyPos:70,
+  levelOk:0, levelKo:0, totalOk:0, totalKo:0 };
+
+let tickId=null; const stats={ totalElapsed:0, levelElapsed:0, running:false };
+function startStopwatch(){ if(stats.running) return; stats.running=true; stats.levelElapsed=0; tickId=setInterval(()=>{ stats.levelElapsed+=1; updateUI(); },1000); }
+function stopStopwatch(){ if(!stats.running) return; stats.running=false; clearInterval(tickId); tickId=null; }
+
+let qTimer=null, qLeft=8, qTotal=8;
+function levelTimeLimit(lv){ return TIME_BY_LEVEL[Math.min(TIME_BY_LEVEL.length-1, lv-1)] || 8; }
+function startQuestionTimer(){ stopQuestionTimer(); qTotal = qLeft = levelTimeLimit(state.level);
+  elQTime.textContent=qLeft; setQBar(1);
+  qTimer=setInterval(()=>{ if(state.locked) return; qLeft--; elQTime.textContent=Math.max(0,qLeft); setQBar(Math.max(0,qLeft/qTotal)); if(qLeft<=0){ stopQuestionTimer(); autoTimeout(); } },1000); }
+function stopQuestionTimer(){ if(qTimer){ clearInterval(qTimer); qTimer=null; } }
+function setQBar(p){ const w=(p*100).toFixed(1)+'%'; qtfill.style.width=w; qtfill.style.background = (p<=0.3) ? 'linear-gradient(90deg,#ffb3b3,#c62828)' : 'linear-gradient(90deg,#7fb3ff,#245fa5)'; }
+
+/* ===== AUDIO: controlli ===== */
+function setBtnPlaying(p){ btnMusic.textContent = p ? '⏸️ Music' : '▶️ Music'; }
+btnMusic.addEventListener('click', async ()=>{
+  const pct = Math.max(0, Math.min(100, Number(volEl.value)||0));
+  bgm.muted=false; bgm.volume = pct/100;
+  if (bgm.paused) { try{ await bgm.play(); setBtnPlaying(true);}catch(e){ console.warn(e); } }
+  else { bgm.pause(); setBtnPlaying(false); }
+});
+bgm.addEventListener('playing', ()=> setBtnPlaying(true));
+bgm.addEventListener('pause',   ()=> setBtnPlaying(false));
+bgm.addEventListener('ended',   ()=> setBtnPlaying(false));
+bgm.addEventListener('error',   ()=> { console.warn('Audio error: controlla nome/percorso del file'); setBtnPlaying(false); });
+volEl.addEventListener('input', e=>{
+  const pct = Math.max(0, Math.min(100, Number(e.target.value)||0));
+  volPctEl.textContent = pct + '%'; bgm.volume = pct/100;
+});
+
+/* ===== Domande ===== */
+function rand(a,b){return Math.floor(Math.random()*(b-a+1))+a}
+function maxTableForLevel(lv){ if(lv<=1) return 6; if(lv===2) return 7; if(lv===3) return 8; if(lv===4) return 9; return 10; }
+function makeQ(lv){
+  const max = (lv===8) ? 10 : maxTableForLevel(lv);
+  const a = rand(2, max), b = rand(2, max), ok=a*b;
+  const pool=[]; for(let i=2;i<=max;i++) for(let j=2;j<=max;j++) pool.push(i*j);
+  const uniq=[...new Set(pool)].filter(x=>x!==ok);
+  const d1=uniq[rand(0,uniq.length-1)];
+  let d2=uniq[rand(0,uniq.length-1)]; while(d2===d1) d2=uniq[rand(0,uniq.length-1)];
+  const opts=[ok,d1,d2].sort(()=>Math.random()-.5);
+  return { text:`What is ${a} × ${b}?`, opts, ok };
+}
+let current=null;
+
+/* ===== Pista & Attori ===== */
+function buildTrack(){
+  [...elArena.querySelectorAll('.lane,.connector,.flag')].forEach(n=>n.remove());
+  elDecor.textContent='';
+  const lanes = state.lanes = Math.max(1, Math.min(8, state.level));
+  const yTop=60, yBot=90; const gap = (lanes===1)?0:(yBot - yTop)/(lanes-1);
+  for(let i=0;i<lanes;i++){ const lane=document.createElement('div'); lane.className='lane'; lane.style.top=`calc(${yTop + i*gap}% - var(--trackThickness)/2)`; elArena.appendChild(lane); }
+  for(let i=0;i<lanes-1;i++){ const c=document.createElement('div'); c.className='connector'; const leftSide=(i%2===0); c.style.left= leftSide?'8%':'92%';
+    const top1=yTop+i*gap, top2=yTop+(i+1)*gap; c.style.top=`calc(${Math.min(top1,top2)}% - var(--trackThickness)/2)`; c.style.height=`calc(${Math.abs(top2-top1)}% + var(--trackThickness))`; elArena.appendChild(c); }
+  const lastDir=((lanes-1)%2===0)?-1:+1; const flag=document.createElement('div'); flag.className='flag';
+  flag.style.top=`calc(${yTop + (lanes-1)*gap}% - 16%)`; flag.style.left=(lastDir===-1)?'8%':'92%'; flag.textContent='🏁'; elArena.appendChild(flag);
+  const decoSets=[["🚜","🌾","🐄"],["🌲","🍄","🦌"],["🐠","🌊","🐚"],["🌴","🦧","🍃"],["🛰️","🌟","🪐"],["🏜️","🌵","🐫"],["❄️","⛄","🌨️"],["🤖","💾","⚡"]][state.level-1] || ["🌼","☁️","🪺"];
+  [0,1,2].forEach(i=>{ const d=document.createElement('div'); d.className='d'+(i+1); d.textContent=decoSets[i]||''; elDecor.appendChild(d); });
+  state._yTop=yTop; state._gap=gap;
+}
+function laneY(idx){ return state._yTop + idx*state._gap; }
+function setActorLane(el, idx){ el.style.top = `calc(${laneY(idx)}% - 12%)`; }
+function setSX(el,dir){ el.style.setProperty('--sx', (dir===-1 ? 1 : -1)); }
+function updateFacing(){ setSX(elChicken, state.dir); setSX(elEnemy, state.enemyDir); }
+function updateActors(){ elChicken.style.left=state.chickPos+'%'; elEnemy.style.left=state.enemyPos+'%'; setActorLane(elChicken, state.laneIndex); setActorLane(elEnemy, state.laneIndexEnemy); updateFacing(); }
+function updateBar(){
+  const totalSpan=(RIGHT_ESCAPE-LEFT_ESCAPE);
+  let segProg=(state.dir===-1)? (RIGHT_ESCAPE - state.chickPos)/totalSpan : (state.chickPos - LEFT_ESCAPE)/totalSpan;
+  segProg=Math.max(0,Math.min(1,segProg));
+  const pct=((state.laneIndex + segProg)/state.lanes)*100;
+  elBar.style.width=pct.toFixed(1)+'%'; elBar.className='bar ' + (pct>=90?'great':(pct>=70?'good':'base'));
+  elLevelText.textContent=`Level ${state.level}`;
+}
+function updateUI(){ elLives.textContent=Math.max(0,state.lives); elScore.textContent=state.score; elLevelTime.textContent=stats.levelElapsed; elTotTime.textContent=(stats.totalElapsed + stats.levelElapsed); updateActors(); updateBar(); }
+function showMark(ok){ elBg.className='bgmark '+(ok?'ok show':'ko show'); elBg.textContent=ok?'✅':'❌'; setTimeout(()=>elBg.classList.remove('show'),600); }
+function egg(from,to){ const e=document.createElement('div'); e.className='egg'; e.style.setProperty('--from',from+'%'); e.style.setProperty('--to',to+'%'); e.style.top = `calc(${laneY(state.laneIndex)}% - 7%)`; e.textContent='🥚'; elArena.appendChild(e); e.addEventListener('animationend',()=>e.remove()); }
+function feathers(xPct, yPct){ for(let i=0;i<10;i++){ const f=document.createElement('div'); f.className='feather'; f.style.left = xPct+'%'; f.style.top = `calc(${yPct}% - 10px)`; f.style.background = i%2? '#fff' : '#ffe082'; const dx = (Math.random()*120-60)+'px'; const dy = (Math.random()*-80-10)+'px'; f.style.setProperty('--dx', dx); f.style.setProperty('--dy', dy); f.style.animation = 'puff 600ms ease-out forwards'; elArena.appendChild(f); setTimeout(()=>f.remove(),650);} }
+function shake(el,anim){ el.style.animation=anim; setTimeout(()=> el.style.animation='',400); }
+
+/* ===== Livelli ===== */
+function setTheme(){ elArena.className = 'arena ' + (THEMES[state.level] || 'theme-1'); }
+function setEnemyEmoji(){ elEnemyEmoji.textContent = ENEMIES[state.level] || "🦊"; }
+function setupLevel(){
+  state.advancing=false; state.lanes=Math.max(1, Math.min(8, state.level));
+  state.laneIndex=0; state.laneIndexEnemy=0; state.dir=-1; state.enemyDir=-1;
+  state.chickPos=60; state.enemyPos=70; state.shield=true; state.levelOk=0; state.levelKo=0;
+  setTheme(); setEnemyEmoji(); buildTrack(); updateFacing(); setActorLane(elChicken,state.laneIndex); setActorLane(elEnemy,state.laneIndexEnemy);
+  elChicken.style.left=state.chickPos+'%'; elEnemy.style.left=state.enemyPos+'%'; startStopwatch();
+}
+
+/* ===== Domande ===== */
+function ask(){
+  current=makeQ(state.level);
+  elQ.textContent=current.text;
+  [b1,b2,b3].forEach((b,i)=>{ b.textContent=current.opts[i]; b.classList.remove('ok','ko'); b.disabled=false; });
+  state.locked=false; updateUI(); startQuestionTimer();
+}
+
+/* ===== Summary / Fine ===== */
+function openSummary(){ elOverlay.classList.add('show'); elSummary.style.display='block';
+  sumLvl.textContent=state.level; sumTime.textContent=stats.levelElapsed; sumOk.textContent=state.levelOk; sumKo.textContent=state.levelKo;
+  sumTotOk.textContent=state.totalOk; sumTotKo.textContent=state.totalKo; sumBonus.textContent='+20'; sumScore.textContent=state.score;
+  btnContinue.onclick=()=>{ elSummary.style.display='none'; elOverlay.classList.remove('show'); state.level=Math.min(8,state.level+1); setupLevel(); ask(); };
+}
+function finishLevel(){ if(state.advancing) return; state.advancing=true; stopStopwatch(); stopQuestionTimer();
+  stats.totalElapsed += stats.levelElapsed; state.totalOk += state.levelOk; state.totalKo += state.levelKo;
+  state.score += 20; state.lives = Math.min(MAX_LIVES, state.lives+1); SFX.levelup(); updateUI(); openSummary();
+}
+function gameOver(){ if(state.advancing) return; state.advancing=true; stopStopwatch(); stopQuestionTimer(); SFX.over();
+  setTimeout(()=>{ if(confirm('Continue?')){ SFX.cont(); state.lives=3; state.score=Math.max(0,state.score-10); setupLevel(); ask(); }
+    else { Object.assign(state,{level:1,lives:3,score:0,totalOk:0,totalKo:0}); stats.totalElapsed=0; stats.levelElapsed=0; setupLevel(); ask(); } },80);
+}
+
+/* ===== Logica percorso ===== */
+function mergeBufferIfTooClose(){ const sameLane = state.laneIndex===state.laneIndexEnemy; const dist = Math.abs(state.enemyPos - state.chickPos);
+  if(sameLane && dist < SAFE_GAP){ if(state.dir===+1){ state.enemyPos = Math.max(state.chickPos - SAFE_GAP, LEFT_ESCAPE); } else { state.enemyPos = Math.min(state.chickPos + SAFE_GAP, RIGHT_ESCAPE); } } }
+function checkEnd(){
+  if(state.laneIndex === state.laneIndexEnemy && Math.abs(state.enemyPos - state.chickPos) <= HIT_GAP){ gameOver(); return true; }
+  if(state.dir===-1 && state.chickPos<=LEFT_ESCAPE){
+    if(state.laneIndex < state.lanes-1){ state.laneIndex += 1; state.dir = +1; mergeBufferIfTooClose(); updateFacing(); updateActors(); ask(); return true; }
+    finishLevel(); return true;
+  }
+  if(state.dir===+1 && state.chickPos>=RIGHT_ESCAPE){
+    if(state.laneIndex < state.lanes-1){ state.laneIndex += 1; state.dir = -1; mergeBufferIfTooClose(); updateFacing(); updateActors(); ask(); return true; }
+    finishLevel(); return true;
+  }
+  return false;
+}
+
+/* ===== Input & punteggio ===== */
+function right(btn){ state.locked=true; stopQuestionTimer(); btn.classList.add('ok'); showMark(true); SFX.correct(); state.score += 10; state.levelOk++;
+  const old=state.chickPos; state.chickPos = (state.dir===-1)? Math.max(LEFT_ESCAPE, state.chickPos-STEP_CHICK) : Math.min(RIGHT_ESCAPE, state.chickPos+STEP_CHICK);
+  egg(old,state.enemyPos); shake(elEnemy,'shakeFox 0.4s ease'); SFX.hit(); feathers(state.enemyPos, laneY(state.laneIndex)); updateUI(); if(!checkEnd()) setTimeout(ask,300);
+}
+function wrongCommon(){ shake(elChicken,'shakeChicken 0.4s ease'); SFX.wrong(); state.levelKo++; state.lives=Math.max(0,state.lives-1); state.score = Math.max(0, state.score-5);
+  if(state.lives===0){ updateUI(); gameOver(); return; }
+  state.enemyPos += (state.enemyDir===-1 ? -STEP_ENEMY : +STEP_ENEMY);
+  if(state.enemyDir===-1 && state.enemyPos<=LEFT_ESCAPE && state.laneIndexEnemy < state.lanes-1){ state.laneIndexEnemy++; state.enemyDir=+1; }
+  else if(state.enemyDir===+1 && state.enemyPos>=RIGHT_ESCAPE && state.laneIndexEnemy < state.lanes-1){ state.laneIndexEnemy++; state.enemyDir=-1; }
+  if(state.laneIndex === state.laneIndexEnemy && Math.abs(state.enemyPos - state.chickPos) <= HIT_GAP && state.shield){
+    state.enemyPos = (state.enemyDir===-1) ? state.chickPos + HIT_GAP + 1 : state.chickPos - HIT_GAP - 1; state.shield=false;
+  }
+  updateUI(); if(!checkEnd()) setTimeout(ask,300);
+}
+function wrong(btn){ state.locked=true; stopQuestionTimer(); btn.classList.add('ko'); showMark(false); wrongCommon(); }
+function autoTimeout(){ if(state.locked) return; [b1,b2,b3].forEach(x=>x.disabled=true); showMark(false); wrongCommon(); }
+
+/* ===== SFX (beep) ===== */
+function beep(freq=440, dur=0.1, type='sine', vol=0.25){
+  const Ctx = window.AudioContext || window.webkitAudioContext; const c = (window._sfxCtx ||= new Ctx());
+  const o=c.createOscillator(), g=c.createGain(); o.type=type; o.frequency.value=freq; g.gain.value=vol; o.connect(g); g.connect(c.destination); o.start();
+  g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime+dur); o.stop(c.currentTime+dur+0.02);
+}
+const SFX={ correct: ()=>{ beep(880,0.07,'sine',0.22); setTimeout(()=>beep(1175,0.06,'sine',0.2),70); },
+  wrong:()=>{ beep(160,0.16,'sawtooth',0.25); }, hit:()=>{ beep(520,0.05,'square',0.22); setTimeout(()=>beep(380,0.05,'square',0.18),55); },
+  levelup:()=>{ [659,784,988].forEach((f,i)=>setTimeout(()=>beep(f,0.08,'triangle',0.22),i*90)); },
+  over:()=>{ [440,330,220].forEach((f,i)=>setTimeout(()=>beep(f,0.18,'sine',0.22),i*160)); },
+  cont:()=>{ [523,659].forEach((f,i)=>setTimeout(()=>beep(f,0.1,'triangle',0.22),i*120)); } };
+
+/* ===== AVVIO DOPO LOGIN ===== */
+async function startGameAfterLogin(){
+  // audio all’1% + play
+  bgm.volume = 0.01; bgm.muted = false;
+  try{ await bgm.play(); }catch(e){}
+  btnMusic.textContent = '⏸️ Music';
+  volEl.value = 1; volPctEl.textContent = '1%';
+
+  // avvia gioco
+  loginOverlay.classList.remove('show');
+  setupLevel(); ask();
+}
+
+/* Semplice verifica credenziali (client-side, sufficiente per test privato) */
+function tryLogin(){
+  const nick = (nickInput.value||'').trim();
+  const pass = (passInput.value||'').trim();
+  if(nick === 'Jessica' && pass === 'Mancini'){
+    loginError.textContent = '';
+    startGameAfterLogin();
+  }else{
+    loginError.textContent = 'Credenziali errate';
+    // piccolo shake visivo
+    loginOverlay.querySelector('.summary').style.transform='scale(0.98)';
+    setTimeout(()=>loginOverlay.querySelector('.summary').style.transform='scale(1)',120);
+  }
+}
+btnLogin.addEventListener('click', tryLogin);
+passInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') tryLogin(); });
+
+/* ===== Eventi ===== */
+[b1,b2,b3].forEach(b=>b.addEventListener('click',()=>{ if(state.locked) return; [b1,b2,b3].forEach(x=>x.disabled=true);
+  Number(b.textContent)===current.ok ? right(b) : wrong(b); }));
+
+function setTheme(){ elArena.className = 'arena ' + (THEMES[state.level] || 'theme-1'); }
+function setEnemyEmoji(){ elEnemyEmoji.textContent = ENEMIES[state.level] || "🦊"; }
+function init(){ elArena.classList.add('theme-1'); volPctEl.textContent = volEl.value + '%'; }
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
