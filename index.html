@@ -105,7 +105,7 @@
   <div class="game" id="game">
     <div class="top">
       <div class="group">
-        <div>❤️ <span id="lives">100</span></div>
+        <div>❤️ <span id="lives">3</span></div>
         <div>⭐ <span id="score">0</span></div>
         <div class="timer">⏱️ L <span id="levelTime">0</span>s • T <span id="totTime">0</span>s</div>
       </div>
@@ -172,7 +172,7 @@
       </div>
     </div>
 
-    <!-- AUDIO (parte dopo login) -->
+    <!-- AUDIO nascosto: parte solo dopo login -->
     <audio id="bgm" src="Gioia_Pixelata.mp3" preload="auto" loop
            style="position:absolute;left:-9999px;top:-9999px;width:0;height:0;opacity:0;pointer-events:none;"></audio>
   </div>
@@ -201,12 +201,12 @@ const buttons=[b1,b2,b3];
 /* ===== GIOCO: costanti e stato ===== */
 const LEFT_ESCAPE=10, RIGHT_ESCAPE=90, HIT_GAP=5, SAFE_GAP=16;
 const STEP_CHICK=5, STEP_ENEMY=10;
-const MAX_LIVES=100; // <- massimo cuori
+const MAX_LIVES=5;
 const THEMES=["","theme-1","theme-2","theme-3","theme-4","theme-5","theme-6","theme-7","theme-8"];
 const ENEMIES=["", "🦊","🐻","🦈","🦖","🛸","🐍","🐺","👾"];
 const TIME_BY_LEVEL=[8,6,5,4,3,2,2,2];
 
-const state={ level:1, lives:100, score:0, locked:false, shield:true, advancing:false,
+const state={ level:1, lives:3, score:0, locked:false, shield:true, advancing:false,
   lanes:1, laneIndex:0, laneIndexEnemy:0, dir:-1, enemyDir:-1, chickPos:60, enemyPos:70,
   levelOk:0, levelKo:0, totalOk:0, totalKo:0 };
 
@@ -318,8 +318,8 @@ function finishLevel(){ if(state.advancing) return; state.advancing=true; stopSt
   state.score += 20; state.lives = Math.min(MAX_LIVES, state.lives+1); SFX.levelup(); updateUI(); openSummary();
 }
 function gameOver(){ if(state.advancing) return; state.advancing=true; stopStopwatch(); stopQuestionTimer(); SFX.over();
-  setTimeout(()=>{ if(confirm('Continue?')){ SFX.cont(); state.lives=100; state.score=Math.max(0,state.score-10); setupLevel(); ask(); }
-    else { Object.assign(state,{level:1,lives:100,score:0,totalOk:0,totalKo:0}); stats.totalElapsed=0; stats.levelElapsed=0; setupLevel(); ask(); } },80);
+  setTimeout(()=>{ if(confirm('Continue?')){ SFX.cont(); state.lives=3; state.score=Math.max(0,state.score-10); setupLevel(); ask(); }
+    else { Object.assign(state,{level:1,lives:3,score:0,totalOk:0,totalKo:0}); stats.totalElapsed=0; stats.levelElapsed=0; setupLevel(); ask(); } },80);
 }
 
 /* ===== Logica percorso ===== */
@@ -381,18 +381,18 @@ async function startGameAfterLogin(){
   setupLevel(); ask();
 }
 
-/* Verifica credenziali (client-side) */
+/* Semplice verifica credenziali (client-side, sufficiente per test privato) */
 function tryLogin(){
   const nick = (nickInput.value||'').trim();
   const pass = (passInput.value||'').trim();
-  if(nick === 'Jesica' && pass === 'mancini'){
+  if(nick === 'Jessica' && pass === 'Mancini'){
     loginError.textContent = '';
     startGameAfterLogin();
   }else{
     loginError.textContent = 'Credenziali errate';
-    const box = loginOverlay.querySelector('.summary');
-    box.style.transform='scale(0.98)';
-    setTimeout(()=>box.style.transform='scale(1)',120);
+    // piccolo shake visivo
+    loginOverlay.querySelector('.summary').style.transform='scale(0.98)';
+    setTimeout(()=>loginOverlay.querySelector('.summary').style.transform='scale(1)',120);
   }
 }
 btnLogin.addEventListener('click', tryLogin);
@@ -402,12 +402,10 @@ passInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') tryLogin(); });
 [b1,b2,b3].forEach(b=>b.addEventListener('click',()=>{ if(state.locked) return; [b1,b2,b3].forEach(x=>x.disabled=true);
   Number(b.textContent)===current.ok ? right(b) : wrong(b); }));
 
+function setTheme(){ elArena.className = 'arena ' + (THEMES[state.level] || 'theme-1'); }
+function setEnemyEmoji(){ elEnemyEmoji.textContent = ENEMIES[state.level] || "🦊"; }
 function init(){ elArena.classList.add('theme-1'); volPctEl.textContent = volEl.value + '%'; }
 document.addEventListener('DOMContentLoaded', init);
-</script>
-</body>
-</html>
-
 </script>
 </body>
 </html>
