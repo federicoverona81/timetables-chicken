@@ -370,11 +370,11 @@ const SFX={ correct: ()=>{ beep(880,0.07,'sine',0.22); setTimeout(()=>beep(1175,
 
 /* ===== AVVIO DOPO LOGIN ===== */
 async function startGameAfterLogin(){
-  // audio all’1% + play
-  bgm.volume = 0.01; bgm.muted = false;
+  // audio all’3% + play
+  bgm.volume = 0.03; bgm.muted = false;
   try{ await bgm.play(); }catch(e){}
   btnMusic.textContent = '⏸️ Music';
-  volEl.value = 1; volPctEl.textContent = '1%';
+  volEl.value = 1; volPctEl.textContent = '3%';
 
   // avvia gioco
   loginOverlay.classList.remove('show');
@@ -409,4 +409,5 @@ document.addEventListener('DOMContentLoaded', init);
 </script>
 </body>
 </html>
+
 
