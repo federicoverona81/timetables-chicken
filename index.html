@@ -92,8 +92,7 @@
   /* === Overlay/pannelli === */
   .overlay{
     position:absolute; inset:0;
-    display:none;
-    opacity:0; pointer-events:none;
+    display:none; opacity:0; pointer-events:none;
     background:rgba(0,0,0,.46);
     transition:.18s;
     z-index:9999;
@@ -113,23 +112,16 @@
   .panel h2{margin:0 0 12px 0;font-size:clamp(20px,2.6vw,24px)}
 
   .tpBody{
-    position:relative;
-    flex:1 1 auto;
-    overflow:auto;
+    position:relative; flex:1 1 auto; overflow:auto;
     background:
       linear-gradient(#fff, rgba(255,255,255,0)) top/100% 12px no-repeat,
       linear-gradient(rgba(255,255,255,0), #fff) bottom/100% 12px no-repeat;
-    background-attachment: local, local;
-    padding-right:6px;
+    background-attachment: local, local; padding-right:6px;
   }
   .tpFooter{
-    flex:0 0 auto;
-    position:sticky; bottom:0;
-    background:#fff; color:#222;
-    padding-top:8px; margin-top:10px;
-    box-shadow:0 -8px 12px rgba(0,0,0,0.06);
-    display:flex; justify-content:space-between; align-items:center; gap:8px;
-    flex-wrap:wrap;
+    flex:0 0 auto; position:sticky; bottom:0; background:#fff; color:#222;
+    padding-top:8px; margin-top:10px; box-shadow:0 -8px 12px rgba(0,0,0,0.06);
+    display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;
   }
 
   .summary{padding:18px;border-radius:14px;background:#fff;color:#222;box-shadow:0 12px 36px rgba(0,0,0,.28);min-width:300px;max-width:560px}
@@ -289,7 +281,7 @@
     <audio id="sfxOk" src="sfx_ok.wav" preload="auto" style="position:absolute;left:-9999px;top:-9999px;width:0;height:0;opacity:0;pointer-events:none;"></audio>
     <audio id="sfxKo" src="sfx_wrong.wav" preload="auto" style="position:absolute;left:-9999px;top:-9999px;width:0;height:0;opacity:0;pointer-events:none;"></audio>
   </div>
-  <!-- JS nel blocco 2 e 3 -->
+  <!-- JS nei prossimi 2 blocchi -->
   <script>
 /* ==== DOM ==== */
 const $=id=>document.getElementById(id);
@@ -391,13 +383,39 @@ function setQBar(p){ const w=(p*100).toFixed(1)+'%'; qtfill.style.width=w; qtfil
 /* Musica + SFX */
 function setBtnPlaying(p){ btnMusic.textContent = p ? '⏸️ Music' : '▶️ Music'; }
 function ensureVolume(){ bgm.muted=false; bgm.volume=0.10; }
-function playSfx(el, vol=0.6){
-  if(!el) return;
-  try{ el.volume=vol; el.currentTime=0; el.play().catch(()=>{}); }catch(e){}
+
+// fallback beep minimale (se i file non partono)
+let _audioCtx=null;
+function beep(freq=880,ms=140,type='sine'){
+  try{
+    _audioCtx=_audioCtx||new (window.AudioContext||window.webkitAudioContext)();
+    const o=_audioCtx.createOscillator(), g=_audioCtx.createGain();
+    o.type=type; o.frequency.value=freq; g.gain.value=0.12;
+    o.connect(g); g.connect(_audioCtx.destination); o.start(); setTimeout(()=>o.stop(),ms);
+  }catch(e){}
 }
+async function playSfx(el,vol=0.6){
+  try{
+    if(!el){ beep(900,120,'triangle'); return; }
+    el.volume=vol; el.currentTime=0; await el.play();
+  }catch(e){
+    const isOk = el && el.id==='sfxOk';
+    beep(isOk?1100:420, 150, isOk?'triangle':'square');
+  }
+}
+
+// priming audio al primo gesto
+let audioPrimed=false;
+async function primeAudio(){
+  if(audioPrimed) return; audioPrimed=true;
+  try{ _audioCtx=_audioCtx||new (window.AudioContext||window.webkitAudioContext)(); if(_audioCtx.state==='suspended') await _audioCtx.resume(); }catch(e){}
+  const tryPlay=async el=>{ try{ el.muted=false; el.volume=0.001; el.currentTime=0; await el.play(); el.pause(); el.currentTime=0; el.volume=0.6; }catch(e){} };
+  await tryPlay(sfxOk); await tryPlay(sfxKo);
+}
+['pointerdown','touchstart','click','keydown'].forEach(ev=>window.addEventListener(ev,primeAudio,{once:true,passive:true}));
+
 btnMusic.addEventListener('click', async ()=>{
   ensureVolume();
-  // sblocco audio su iOS/Android per SFX
   try{ await sfxOk.play(); sfxOk.pause(); sfxOk.currentTime=0; }catch(e){}
   try{ await sfxKo.play(); sfxKo.pause(); sfxKo.currentTime=0; }catch(e){}
   if (bgm.paused) { try{ await bgm.play(); setBtnPlaying(true);}catch(e){} }
@@ -409,10 +427,20 @@ bgm.addEventListener('pause',   ()=> setBtnPlaying(false));
 /* Domande */
 const rand=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
 function maxTableForLevel(lv){ if(lv<=1) return 6; if(lv===2) return 7; if(lv===3) return 8; if(lv===4) return 9; return 10; }
+
+// --- NOVITÀ TRAINING: domande coerenti col livello corrente ---
+function getTrainingTablesForLevel(lv){
+  const max = maxTableForLevel(lv);
+  const sel = Array.from(state.trainingTables);
+  if(sel.length===0) return [2];
+  const filtered = sel.filter(t=>t<=max);
+  return filtered.length ? filtered : sel; // se nessuna <= max, usa comunque le selezionate
+}
+
 function makeQ(lv){
   if(state.mode==='train'){
-    const arr = Array.from(state.trainingTables);
-    const a = arr.length ? arr[rand(0,arr.length-1)] : 2;
+    const poolA = getTrainingTablesForLevel(lv);
+    const a = poolA[rand(0,poolA.length-1)];
     const b = rand(2,10);
     const ok=a*b;
     const pool=[]; for(let j=2;j<=10;j++) pool.push(a*j);
@@ -581,10 +609,23 @@ function finishLevel(){
     _btnBackMenu.style.display='inline-block';
     _btnContinue.style.display='inline-block';
 
-    _btnTrainAgain.addEventListener('click', (e)=>{e.preventDefault(); elSummary.style.display='none'; hideOverlay(elOverlay); stats.levelElapsed=0; state.advancing=false; state.locked=false; setupLevel(); ask();});
-    _btnChangeTab.addEventListener('click', ()=>{ elSummary.style.display='none'; hideOverlay(elOverlay); openTrainingGrid(); });
-    _btnBackMenu.addEventListener('click', (e)=>{ e.preventDefault(); elSummary.style.display='none'; hideOverlay(elOverlay); openMenu(true); });
-    _btnContinue.addEventListener('click', (e)=>{ e.preventDefault(); elSummary.style.display='none'; hideOverlay(elOverlay); state.level=Math.min(8,state.level+1); stats.levelElapsed=0; state.advancing=false; state.locked=false; setupLevel(); ask(); });
+    _btnTrainAgain.addEventListener('click', (e)=>{
+      e.preventDefault();
+      elSummary.style.display='none'; hideOverlay(elOverlay);
+      stats.levelElapsed=0; state.advancing=false; state.locked=false;
+      setupLevel(); ask();
+    });
+    _btnChangeTab.addEventListener('click', ()=>{
+      elSummary.style.display='none'; hideOverlay(elOverlay); openTrainingGrid();
+    });
+    // >>> NOVITÀ: anche in TRAINING avanza di livello in ordine 1→2→… (max 8)
+    _btnContinue.addEventListener('click', (e)=>{
+      e.preventDefault();
+      elSummary.style.display='none'; hideOverlay(elOverlay);
+      state.level = Math.min(8, state.level + 1);
+      stats.levelElapsed=0; state.advancing=false; state.locked=false;
+      setupLevel(); ask();
+    });
 
   } else {
     sumTitle.textContent = `Level ${state.level} — Summary`;
@@ -594,8 +635,18 @@ function finishLevel(){
     _btnBackMenu.style.display='inline-block';
     _btnContinue.style.display='inline-block';
 
-    _btnContinue.addEventListener('click', (e)=>{ e.preventDefault(); elSummary.style.display='none'; hideOverlay(elOverlay); advancePlayLevel(); state.lives=Math.min(MAX_LIVES, state.lives + LIFE_PER_LEVEL); stats.levelElapsed=0; state.advancing=false; state.locked=false; setupLevel(); ask(); });
-    _btnBackMenu.addEventListener('click', (e)=>{ e.preventDefault(); elSummary.style.display='none'; hideOverlay(elOverlay); openMenu(true); });
+    _btnContinue.addEventListener('click', (e)=>{
+      e.preventDefault();
+      elSummary.style.display='none'; hideOverlay(elOverlay);
+      advancePlayLevel();
+      state.lives=Math.min(MAX_LIVES, state.lives + LIFE_PER_LEVEL);
+      stats.levelElapsed=0; state.advancing=false; state.locked=false;
+      setupLevel(); ask();
+    });
+    _btnBackMenu.addEventListener('click', (e)=>{
+      e.preventDefault();
+      elSummary.style.display='none'; hideOverlay(elOverlay); openMenu(true);
+    });
   }
 
   showOverlay(elOverlay);
